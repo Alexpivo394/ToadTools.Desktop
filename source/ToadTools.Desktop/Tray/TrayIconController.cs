@@ -28,6 +28,7 @@ public sealed class TrayIconController : IDisposable
     private readonly MenuItem _installNow;
     private readonly MenuItem _updateApp;
     private readonly ContextMenu _menu;
+    private Version? _notifiedApp;
 
     public TrayIconController(App app)
     {
@@ -122,6 +123,9 @@ public sealed class TrayIconController : IDisposable
             return;
         }
 
+        // Сервис напоминает о готовой версии после каждой проверки: уведомление — один раз на версию
+        if (_notifiedApp == version) return;
+        _notifiedApp = version;
         Notify($"Новая версия программы ToadTools {version}", "Нажмите «Обновить программу» в меню значка.");
     }
 

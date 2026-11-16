@@ -72,6 +72,7 @@ public sealed class UpdateService : IDisposable
     private string? _error;
     private Version? _announcedAvailable;
     private Version? _announcedReady;
+    private Version? _appReadyToAnnounce;
 
     public UpdateService(
         AppPaths paths,
@@ -217,6 +218,11 @@ public sealed class UpdateService : IDisposable
             RefreshStatus();
             _checkGate.Release();
         }
+
+        // Только после конца проверки: пока статус «Скачивание», программа считает себя занятой и не ставит MSI.
+        // Скачанная раньше версия (программу перезапустили, не поставив её) объявляется после каждой проверки снова
+        var ready = Interlocked.Exchange(ref _appReadyToAnnounce, null) ?? PendingApp;
+        if (ready != null) AppUpdateReady?.Invoke(this, ready);
     }
 
     /// <summary>Релиз плагина (репозиторий ToadTools): скачать новую версию или сообщить о ней.</summary>
@@ -361,7 +367,7 @@ public sealed class UpdateService : IDisposable
 
             PendingApp = version;
             PendingAppMsi = msi;
-            AppUpdateReady?.Invoke(this, version);
+            _appReadyToAnnounce = version;
             return true;
         }
         catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException

@@ -283,6 +283,44 @@ public class UpdateServiceTests
     }
 
     [Test]
+    public async Task AppUpdateReady_RaisedAfterCheckFinished_NotWhileDownloading()
+    {
+        using var bench = new Bench();
+        bench.Release("4.0.3", [2025], appVersion: "1.1.0");
+        using var service = bench.Service(new Version(1, 0, 0));
+        UpdateStatus? statusAtEvent = null;
+        service.AppUpdateReady += (_, _) => statusAtEvent = service.Status;
+
+        await service.CheckNowAsync(userInitiated: false);
+
+        statusAtEvent.ShouldNotBeNull();
+        statusAtEvent.ShouldNotBe(UpdateStatus.Checking);
+        statusAtEvent.ShouldNotBe(UpdateStatus.Downloading);
+    }
+
+    [Test]
+    public async Task DownloadedAppMsi_AfterRestart_AnnouncedAgainAfterCheck()
+    {
+        using var bench = new Bench();
+        bench.Release("4.0.3", [2025], appVersion: "1.1.0");
+        using (var first = bench.Service(new Version(1, 0, 0)))
+        {
+            await first.CheckNowAsync(userInitiated: false);
+            await Settled(first);
+        }
+
+        bench.LatestStatus = HttpStatusCode.NotModified;
+        bench.AppStatus = HttpStatusCode.NotModified;
+        using var service = bench.Service(new Version(1, 0, 0));
+        Version? announced = null;
+        service.AppUpdateReady += (_, version) => announced = version;
+
+        await service.CheckNowAsync(userInitiated: false);
+
+        announced.ShouldBe(new Version(1, 1, 0));
+    }
+
+    [Test]
     public async Task NewerAppMsi_AppUpdateReady()
     {
         using var bench = new Bench();
