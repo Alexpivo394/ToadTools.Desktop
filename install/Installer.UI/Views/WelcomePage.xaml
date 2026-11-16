@@ -23,7 +23,7 @@
                     <TextBlock Text="{Binding ProductTitle}" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,4" />
                     <TextBlock Style="{StaticResource Hint}" Margin="0"
                                Visibility="{Binding IsUpgrade, Converter={StaticResource Hidden}}"
-                               Text="Инструменты для Revit. Программа в трее сама ставит плагин и обновляет его, когда выходит новая версия." />
+                               Text="Инструменты для Revit. Программа в трее сама ставит плагин и обновляет его. Для текущего пользователя, без прав администратора." />
                     <StackPanel Orientation="Horizontal" Visibility="{Binding IsUpgrade, Converter={StaticResource Visible}}">
                         <toad:Badge Tone="Neutral" Content="{Binding PreviousTitle}" />
                         <toad:Icon Symbol="ArrowRight" Margin="8,0" Foreground="{DynamicResource Toad.Brush.TextDimmed}" />
@@ -36,7 +36,6 @@
                        Visibility="{Binding HasUpgradeHint, Converter={StaticResource Visible}}" />
 
             <toad:Card Icon="BuildingSkyscraper" Header="{Binding RevitTitle}" Description="{Binding RevitHint}" />
-            <toad:Card Icon="User" Margin="0,8,0,0" Header="{Binding ScopeTitle}" Description="{Binding ScopeHint}" />
 
             <StackPanel Margin="0,14,0,0" Visibility="{Binding HasHighlights, Converter={StaticResource Visible}}">
                 <TextBlock Text="{Binding Info.Version, StringFormat='Что нового в {0}'}" FontWeight="SemiBold" Margin="0,0,0,4" />
@@ -46,7 +45,7 @@
                             <DockPanel Margin="0,2">
                                 <Ellipse Width="5" Height="5" Margin="4,8,10,0" VerticalAlignment="Top"
                                          Fill="{DynamicResource Toad.Brush.Accent}" />
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" TextTrimming="WordEllipsis" MaxHeight="40" />
                             </DockPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
