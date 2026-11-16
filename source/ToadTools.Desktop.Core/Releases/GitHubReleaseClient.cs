@@ -6,16 +6,18 @@ using Newtonsoft.Json.Linq;
 namespace ToadTools.Desktop.Core.Releases;
 
 /// <summary>
-///     Последний релиз ToadTools на GitHub (releases/latest: без prerelease и черновиков). С ETag: ответ 304 не тратит
-///     лимит GitHub (60 запросов в час без токена). Ошибки сети и HTTP не бросаются, а возвращаются как Failed.
+///     Последний релиз на GitHub: файл latest.json, который сборка кладёт в каждый релиз, по постоянной ссылке
+///     releases/latest/download/latest.json (без prerelease и черновиков). Это не API: ссылку отдаёт CDN GitHub без
+///     лимита 60 запросов в час на адрес, так что офис за одним роутером проверяет обновления без отказов. Формат файла —
+///     как ответ API о релизе (tag_name, body, assets). Ошибки сети и HTTP не бросаются, а возвращаются как Failed.
 /// </summary>
 public sealed class GitHubReleaseClient(HttpMessageHandler handler, Uri? latestUrl = null)
 {
     /// <summary>Релизы плагина.</summary>
-    public static readonly Uri PluginLatestUrl = new("https://api.github.com/repos/Alexpivo394/ToadTools/releases/latest");
+    public static readonly Uri PluginLatestUrl = new("https://github.com/Alexpivo394/ToadTools/releases/latest/download/latest.json");
 
     /// <summary>Релизы самой программы.</summary>
-    public static readonly Uri AppLatestUrl = new("https://api.github.com/repos/Alexpivo394/ToadTools.Desktop/releases/latest");
+    public static readonly Uri AppLatestUrl = new("https://github.com/Alexpivo394/ToadTools.Desktop/releases/latest/download/latest.json");
 
     private readonly HttpClient _client = new(handler, false) { Timeout = TimeSpan.FromSeconds(30) };
     private readonly Uri _latestUrl = latestUrl ?? PluginLatestUrl;
@@ -24,7 +26,7 @@ public sealed class GitHubReleaseClient(HttpMessageHandler handler, Uri? latestU
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, _latestUrl);
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("ToadTools-Desktop", "1.0"));
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         if (!string.IsNullOrEmpty(etag) && EntityTagHeaderValue.TryParse(etag, out var tag)) request.Headers.IfNoneMatch.Add(tag);
 
         try
@@ -61,6 +63,7 @@ public sealed class GitHubReleaseClient(HttpMessageHandler handler, Uri? latestU
     private static string Describe(HttpResponseMessage response)
     {
         var code = (int)response.StatusCode;
+        if (code == 404) return "В последнем релизе на GitHub нет описания latest.json — обновление пока не выложено";
         if (code is 403 or 429 && response.Headers.TryGetValues("X-RateLimit-Remaining", out var left) && left.FirstOrDefault() == "0")
             return "Исчерпан лимит запросов к GitHub, следующая попытка позже";
         return $"GitHub ответил {code} {response.ReasonPhrase}";

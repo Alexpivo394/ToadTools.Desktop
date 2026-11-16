@@ -89,14 +89,14 @@ public class UpdateServiceTests
         {
             if (Offline) throw new HttpRequestException("offline");
             var path = request.RequestUri!.AbsolutePath;
-            if (path == "/repos/Alexpivo394/ToadTools.Desktop/releases/latest")
+            if (path == "/Alexpivo394/ToadTools.Desktop/releases/latest/download/latest.json")
             {
                 AppRequests++;
                 if (AppStatus is { } appStatus) return new HttpResponseMessage(appStatus);
                 return _appTag == null ? new HttpResponseMessage(HttpStatusCode.NotFound) : ReleaseJson(_appTag, _appFiles);
             }
 
-            if (path == "/repos/Alexpivo394/ToadTools/releases/latest")
+            if (path == "/Alexpivo394/ToadTools/releases/latest/download/latest.json")
             {
                 LatestRequests++;
                 if (LatestStatus is { } status) return new HttpResponseMessage(status);

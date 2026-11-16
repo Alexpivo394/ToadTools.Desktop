@@ -34,6 +34,7 @@ if (args.Contains("pack"))
     builder.Services.AddModule<CleanProjectModule>();
     builder.Services.AddModule<CreateInstallerModule>();
     builder.Services.AddModule<SignArtifactsModule>();
+    builder.Services.AddModule<CreateReleaseManifestModule>();
 }
 
 if (args.Contains("publish"))

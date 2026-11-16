@@ -30,7 +30,7 @@ public class GitHubReleaseClientTests
         check.Release.Assets[0].DownloadUrl.ShouldBe(
             new Uri("https://github.com/Alexpivo394/ToadTools/releases/download/4.0.3/ToadTools-4.0.3.zip"));
         var request = handler.Requests.Single();
-        request.RequestUri.ShouldBe(new Uri("https://api.github.com/repos/Alexpivo394/ToadTools/releases/latest"));
+        request.RequestUri.ShouldBe(new Uri("https://github.com/Alexpivo394/ToadTools/releases/latest/download/latest.json"));
         request.Headers.UserAgent.ToString().ShouldContain("ToadTools-Desktop");
     }
 
@@ -59,6 +59,24 @@ public class GitHubReleaseClientTests
 
         check.Status.ShouldBe(ReleaseCheckStatus.Failed);
         check.Error!.ShouldContain("лимит");
+    }
+
+    [Test]
+    public async Task ReleaseWithoutManifest_Fails_WithReason()
+    {
+        var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var check = await new GitHubReleaseClient(handler).GetLatestAsync(null, CancellationToken.None);
+
+        check.Status.ShouldBe(ReleaseCheckStatus.Failed);
+        check.Error!.ShouldContain("latest.json");
+    }
+
+    [Test]
+    public void DefaultUrls_AreReleaseDownloads_NotApi()
+    {
+        GitHubReleaseClient.PluginLatestUrl.ShouldBe(new Uri("https://github.com/Alexpivo394/ToadTools/releases/latest/download/latest.json"));
+        GitHubReleaseClient.AppLatestUrl.ShouldBe(new Uri("https://github.com/Alexpivo394/ToadTools.Desktop/releases/latest/download/latest.json"));
     }
 
     [Test]
