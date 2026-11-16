@@ -33,6 +33,9 @@ public partial class App
     private readonly CancellationTokenSource _lifetime = new();
     private Task _run = Task.CompletedTask;
     private bool _primary;
+    private bool _ownsMutex;
+    private volatile bool _exiting;
+    private readonly List<RegisteredWaitHandle> _signals = [];
 
     public static AppPaths Paths => AppPaths.Default;
     public static Version Version { get; } = Assembly.GetExecutingAssembly().GetName().Version!;
@@ -52,13 +55,16 @@ public partial class App
         Log.Configure(Paths.LogsDir);
         var args = e.Args.Select(arg => arg.ToLowerInvariant()).ToArray();
 
-        _mutex = new Mutex(true, MutexName, out var first);
+        // Первая копия — та, что захватила мьютекс. По «создан ли мьютекс» судить нельзя: он живёт, пока на него
+        // ссылается хоть один процесс, в том числе закрывающаяся копия
+        _mutex = new Mutex(false, MutexName);
+        var first = _ownsMutex = TryAcquire(_mutex, TimeSpan.Zero);
         _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
         _exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ExitEventName);
 
         if (args.Contains("--exit") || args.Contains("--uninstall"))
         {
-            if (!first) CloseRunningCopy();
+            if (!first) _ownsMutex = CloseRunningCopy();
             if (args.Contains("--uninstall")) Uninstall();
             Shutdown(0);
             return;
@@ -99,6 +105,9 @@ public partial class App
             Feed(e.Args, "--app-feed"));
 
         Tray = new TrayIconController(this);
+#if DEBUG
+        if (args.Contains("--show-menu")) Dispatcher.BeginInvoke(new Action(Tray.ShowMenu), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+#endif
         WaitForSignal(_showEvent, ShowSettings);
         WaitForSignal(_exitEvent, () => Shutdown(0));
 
@@ -151,16 +160,25 @@ public partial class App
         Shutdown(0);
     }
 
-    private void CloseRunningCopy()
+    /// <summary>Просит запущенную копию закрыться и ждёт её мьютекс; true — дождались (мьютекс теперь наш).</summary>
+    private bool CloseRunningCopy()
     {
         _exitEvent!.Set();
+        var closed = TryAcquire(_mutex!, TimeSpan.FromSeconds(15));
+        if (!closed) Log.Error("Запущенная копия ToadTools не закрылась за 15 секунд");
+        return closed;
+    }
+
+    private static bool TryAcquire(Mutex mutex, TimeSpan timeout)
+    {
         try
         {
-            if (!_mutex!.WaitOne(TimeSpan.FromSeconds(15))) Log.Error("Запущенная копия ToadTools не закрылась за 15 секунд");
+            return mutex.WaitOne(timeout);
         }
         catch (AbandonedMutexException)
         {
-            // Копия завершилась, не отпустив мьютекс: это и нужно
+            // Копия завершилась, не отпустив мьютекс: он теперь наш
+            return true;
         }
     }
 
@@ -191,8 +209,12 @@ public partial class App
         }
     }
 
+    /// <summary>Сигнал от другой копии (показать окно, закрыться). Во время выхода сигналы не принимаются.</summary>
     private void WaitForSignal(WaitHandle handle, Action action) =>
-        ThreadPool.RegisterWaitForSingleObject(handle, (_, _) => Dispatcher.BeginInvoke(action), null, Timeout.Infinite, false);
+        _signals.Add(ThreadPool.RegisterWaitForSingleObject(handle, (_, _) =>
+        {
+            if (!_exiting) Dispatcher.BeginInvoke(new Action(() => { if (!_exiting) action(); }));
+        }, null, Timeout.Infinite, false));
 
     /// <summary>Тема, выбранная в плагине (%APPDATA%\ToadTools\theme.json), иначе тема Windows.</summary>
     private static ToadThemeMode RememberedTheme()
@@ -212,6 +234,8 @@ public partial class App
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _exiting = true;
+        foreach (var signal in _signals) signal.Unregister(null);
         _lifetime.Cancel();
         Tray?.Dispose();
         Service?.Dispose();
@@ -223,14 +247,7 @@ public partial class App
         {
         }
 
-        try
-        {
-            _mutex?.ReleaseMutex();
-        }
-        catch (ApplicationException)
-        {
-            // Мьютекс не наш (вторая копия): отпускать нечего
-        }
+        if (_ownsMutex) _mutex?.ReleaseMutex();
 
         if (_primary) Log.Info("ToadTools завершён");
         base.OnExit(e);

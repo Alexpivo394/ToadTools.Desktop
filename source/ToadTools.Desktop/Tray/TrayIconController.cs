@@ -2,9 +2,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media.Imaging;
 using H.NotifyIcon;
 using H.NotifyIcon.Core;
+using ToadDesign;
 using ToadTools.Desktop.Core;
 using ToadTools.Desktop.Core.Revit;
 using ToadTools.Desktop.Core.Updates;
@@ -25,32 +27,39 @@ public sealed class TrayIconController : IDisposable
     private readonly MenuItem _status;
     private readonly MenuItem _installNow;
     private readonly MenuItem _updateApp;
+    private readonly ContextMenu _menu;
 
     public TrayIconController(App app)
     {
         _app = app;
-        _status = new MenuItem { IsEnabled = false };
-        _installNow = new MenuItem { Header = "Установить сейчас" };
+        _status = Item("", Symbol.InfoCircle);
+        _status.IsEnabled = false;
+        _installNow = Item("Установить сейчас", Symbol.Download);
         _installNow.Click += async (_, _) =>
         {
             if (!await _app.Service.InstallPluginNowAsync()) Notify("Revit открыт", "Закройте Revit, чтобы установить новую версию.");
         };
-        _updateApp = new MenuItem { Header = "Обновить программу" };
+        _updateApp = Item("Обновить программу", Symbol.ArrowUpCircle);
         _updateApp.Click += (_, _) => _app.InstallAppUpdate();
 
-        var check = new MenuItem { Header = "Проверить обновления" };
+        var check = Item("Проверить обновления", Symbol.Refresh);
         check.Click += async (_, _) => await _app.Service.CheckNowAsync(userInitiated: true);
-        var notes = new MenuItem { Header = "Что нового" };
+        var notes = Item("Что нового", Symbol.News);
         notes.Click += (_, _) => OpenUrl(ReleasesUrl);
-        var settings = new MenuItem { Header = "Настройки" };
+        var settings = Item("Настройки", Symbol.Settings);
         settings.Click += (_, _) => _app.ShowSettings();
-        var exit = new MenuItem { Header = "Выход" };
+        var exit = Item("Выход", Symbol.Power);
         exit.Click += (_, _) => _app.Shutdown(0);
 
-        var menu = new ContextMenu();
+        _menu = new ContextMenu();
         foreach (var item in new object[] { _status, new Separator(), check, _installNow, _updateApp, notes, settings, new Separator(), exit })
-            menu.Items.Add(item);
-        menu.Opened += (_, _) => _installNow.IsEnabled = !new RevitWatcher().AnyRunning();
+            _menu.Items.Add(item);
+        // Меню — отдельное всплывающее окно вне окон программы: тема ToadDesign подключается к нему самому, а свой стиль
+        // ContextMenu берёт явно (неявный стиль из собственных ресурсов элемента WPF не применяет)
+        Theme.SetIsRoot(_menu, true);
+        if (_menu.TryFindResource(typeof(ContextMenu)) is Style menuStyle) _menu.Style = menuStyle;
+        _menu.Opened += (_, _) => _installNow.IsEnabled = !new RevitWatcher().AnyRunning();
+        var menu = _menu;
 
         _icon = new TaskbarIcon
         {
@@ -168,7 +177,22 @@ public sealed class TrayIconController : IDisposable
         }
     }
 
+    private static MenuItem Item(string header, Symbol symbol) =>
+        new() { Header = header, Icon = new ToadDesign.Icon { Symbol = symbol, Width = 16, Height = 16 } };
+
+    /// <summary>Открыть меню значка у курсора — для проверки его вида без щелчка по трею.</summary>
+    public void ShowMenu()
+    {
+        _menu.Placement = PlacementMode.MousePoint;
+        _menu.IsOpen = true;
+    }
+
     private void OnUi(Action action) => _app.Dispatcher.BeginInvoke(action);
 
-    public void Dispose() => _icon.Dispose();
+    public void Dispose()
+    {
+        // Открытое меню — отдельное окно: закрыть до значка, иначе процесс может не завершиться
+        _menu.IsOpen = false;
+        _icon.Dispose();
+    }
 }
