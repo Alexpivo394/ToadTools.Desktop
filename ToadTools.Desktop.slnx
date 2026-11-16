@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/Automation/">
+    <Project Path="build/Build.csproj" />
+    <Project Path="install/Installer.csproj" />
+    <Project Path="install/Installer.UI/Installer.UI.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+    <File Path="Changelog.md" />
+    <File Path="Readme.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+  </Folder>
+  <Project Path="source/ToadTools.Desktop.Core/ToadTools.Desktop.Core.csproj" />
+  <Project Path="source/ToadTools.Desktop/ToadTools.Desktop.csproj" />
+  <Project Path="tests/ToadTools.Desktop.Tests/ToadTools.Desktop.Tests.csproj" />
+</Solution>
